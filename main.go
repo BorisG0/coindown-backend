@@ -36,13 +36,21 @@ func createLink(w http.ResponseWriter, r *http.Request) {
 	datetime := createInfo.Date + " " + createInfo.Time
 
 	stmt := `INSERT INTO sessions (datetime) VALUES (?)`
-	_, err = db.Exec(stmt, datetime)
+	res, err := db.Exec(stmt, datetime)
 	if err != nil {
 		log.Fatalf("Failed to insert data: %v", err)
 	}
 
-	fmt.Printf("here's your link date: %v, time: %v\n", createInfo.Date, createInfo.Time)
-	fmt.Fprintf(w, "here's your link date: %v, time: %v", createInfo.Date, createInfo.Time)
+	// stmt = `select last_insert_rowid()`
+
+	lastInsertId, err := res.LastInsertId()
+	if err != nil {
+		log.Fatalf("Failed to get last insert id: %v", err)
+	}
+	fmt.Printf("result: %v\n", lastInsertId)
+
+	fmt.Printf("link creation(date: %v, time: %v, id: %v)\n", createInfo.Date, createInfo.Time, lastInsertId)
+	fmt.Fprintf(w, "https://coindown.com/%v", lastInsertId)
 }
 
 func main() {
