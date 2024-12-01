@@ -52,6 +52,18 @@ func main() {
 	}
 	defer db.Close()
 
+	createTable := `
+	create table if not exists sessions (
+		id integer primary key autoincrement,
+		datetime datetime,
+		coin_result text,
+		created_at datetime default current_timestamp
+	);`
+	_, err = db.Exec(createTable)
+	if err != nil {
+		log.Fatalf("Failed to create table: %v", err)
+	}
+
 	fmt.Println("Server started")
 	http.HandleFunc("/create", createLink)
 	log.Fatal(http.ListenAndServe(":8080", nil))
