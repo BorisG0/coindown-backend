@@ -54,7 +54,7 @@ func createLink(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	db, err = sql.Open("sqlite3", "../coindown.db")
+	db, err = sql.Open("sqlite3", "coindown.db")
 	if err != nil {
 		log.Fatal(err)
 	}
