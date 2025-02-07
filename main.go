@@ -1,7 +1,9 @@
 package main
 
 import (
+	"crypto/rand"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -16,6 +18,15 @@ var err error
 type CreateInfo struct {
 	Date string
 	Time string
+}
+
+// generateToken creates a random 16-byte token and returns it as a 32-character hex string
+func generateToken() (string, error) {
+	bytes := make([]byte, 16)
+	if _, err := rand.Read(bytes); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(bytes), nil
 }
 
 func createLink(w http.ResponseWriter, r *http.Request) {
@@ -35,22 +46,24 @@ func createLink(w http.ResponseWriter, r *http.Request) {
 
 	datetime := createInfo.Date + " " + createInfo.Time
 
-	stmt := `INSERT INTO sessions (datetime) VALUES (?)`
-	res, err := db.Exec(stmt, datetime)
+	// Generate a random token
+	token, err := generateToken()
 	if err != nil {
-		log.Fatalf("Failed to insert data: %v", err)
+		log.Printf("Failed to generate token: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
 	}
 
-	// stmt = `select last_insert_rowid()`
-
-	lastInsertId, err := res.LastInsertId()
+	stmt := `INSERT INTO sessions (token, datetime) VALUES (?, ?)`
+	_, err = db.Exec(stmt, token, datetime)
 	if err != nil {
-		log.Fatalf("Failed to get last insert id: %v", err)
+		log.Printf("Failed to insert data: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
 	}
-	fmt.Printf("result: %v\n", lastInsertId)
 
-	fmt.Printf("link creation(date: %v, time: %v, id: %v)\n", createInfo.Date, createInfo.Time, lastInsertId)
-	fmt.Fprintf(w, "https://coindown.com/%v", lastInsertId)
+	fmt.Printf("link creation(date: %v, time: %v, token: %v)\n", createInfo.Date, createInfo.Time, token)
+	fmt.Fprintf(w, "https://coindown.com/%v", token)
 }
 
 func main() {
@@ -62,7 +75,7 @@ func main() {
 
 	createTable := `
 	create table if not exists sessions (
-		id integer primary key autoincrement,
+		token text primary key,
 		datetime datetime,
 		coin_result text,
 		created_at datetime default current_timestamp
