@@ -79,6 +79,7 @@ func createSession(w http.ResponseWriter, r *http.Request) {
 
 	// Return response
 	json.NewEncoder(w).Encode(CreateSessionResponse{Token: token})
+	fmt.Printf("Session created: %v, %v\n", token, datetime)
 }
 
 func viewSession(w http.ResponseWriter, r *http.Request) {
