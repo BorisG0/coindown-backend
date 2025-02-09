@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"time"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -16,8 +17,7 @@ var db *sql.DB
 var err error
 
 type CreateSessionRequest struct {
-	Date string `json:"date"`
-	Time string `json:"time"`
+	Timestamp int64 `json:"timestamp"`
 }
 
 type CreateSessionResponse struct {
@@ -25,7 +25,7 @@ type CreateSessionResponse struct {
 }
 
 type SessionInfo struct {
-	DateTime   string `json:"datetime"`
+	Timestamp  int64  `json:"timestamp"`
 	CoinResult string `json:"coin_result"`
 }
 
@@ -69,9 +69,8 @@ func createSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Store in database
-	datetime := req.Date + " " + req.Time
-	if _, err := db.Exec(`INSERT INTO sessions (token, datetime) VALUES (?, ?)`, token, datetime); err != nil {
+	// Store in database - now storing timestamp directly
+	if _, err := db.Exec(`INSERT INTO sessions (token, timestamp) VALUES (?, ?)`, token, req.Timestamp); err != nil {
 		log.Printf("Failed to insert session: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
@@ -79,7 +78,8 @@ func createSession(w http.ResponseWriter, r *http.Request) {
 
 	// Return response
 	json.NewEncoder(w).Encode(CreateSessionResponse{Token: token})
-	fmt.Printf("Session created: %v, %v\n", token, datetime)
+	localDateTime := time.Unix(req.Timestamp, 0).Format("2006-01-02 15:04:05")
+	fmt.Printf("Session created: %v, %v\n", token, localDateTime)
 }
 
 func viewSession(w http.ResponseWriter, r *http.Request) {
@@ -94,10 +94,10 @@ func viewSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Query the database
+	// Query the database - now reading timestamp directly
 	var session SessionInfo
-	err := db.QueryRow("SELECT datetime, COALESCE(coin_result, '') FROM sessions WHERE token = ?", token).
-		Scan(&session.DateTime, &session.CoinResult)
+	err := db.QueryRow("SELECT timestamp, COALESCE(coin_result, '') FROM sessions WHERE token = ?", token).
+		Scan(&session.Timestamp, &session.CoinResult)
 
 	if err == sql.ErrNoRows {
 		http.Error(w, "Session not found", http.StatusNotFound)
@@ -123,7 +123,7 @@ func main() {
 	createTable := `
 	create table if not exists sessions (
 		token text primary key,
-		datetime datetime,
+		timestamp integer,
 		coin_result text,
 		created_at datetime default current_timestamp
 	);`
