@@ -109,7 +109,7 @@ func viewSession(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// If timestamp is in the past and no coin result exists, generate one
-	if session.Timestamp <= time.Now().Unix() && session.CoinResult == "" {
+	if session.Timestamp <= (time.Now().Unix()+1) && session.CoinResult == "" {
 		// Generate random coin flip result
 		randomBytes := make([]byte, 1)
 		if _, err := rand.Read(randomBytes); err != nil {
@@ -132,6 +132,8 @@ func viewSession(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
 			return
 		}
+
+		log.Printf("New result for %v: %v", token, session.CoinResult)
 	}
 
 	// Return session info as JSON
