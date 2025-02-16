@@ -108,6 +108,32 @@ func viewSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// If timestamp is in the past and no coin result exists, generate one
+	if session.Timestamp <= time.Now().Unix() && session.CoinResult == "" {
+		// Generate random coin flip result
+		randomBytes := make([]byte, 1)
+		if _, err := rand.Read(randomBytes); err != nil {
+			log.Printf("Failed to generate random number: %v", err)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
+
+		// Use the random byte to determine heads or tails
+		if randomBytes[0]%2 == 0 {
+			session.CoinResult = "heads"
+		} else {
+			session.CoinResult = "tails"
+		}
+
+		// Save the result to the database
+		_, err = db.Exec("UPDATE sessions SET coin_result = ? WHERE token = ?", session.CoinResult, token)
+		if err != nil {
+			log.Printf("Failed to update coin result: %v", err)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
+	}
+
 	// Return session info as JSON
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(session)
