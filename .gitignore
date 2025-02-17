@@ -1,1 +1,3 @@
 coindown.db
+.env
+*.db

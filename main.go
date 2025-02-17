@@ -8,9 +8,11 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
-	_ "github.com/mattn/go-sqlite3"
+	"github.com/joho/godotenv"
+	_ "github.com/lib/pq"
 )
 
 var db *sql.DB
@@ -70,7 +72,7 @@ func createSession(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Store in database - now storing timestamp directly
-	if _, err := db.Exec(`INSERT INTO sessions (token, timestamp) VALUES (?, ?)`, token, req.Timestamp); err != nil {
+	if _, err := db.Exec(`INSERT INTO sessions (token, timestamp) VALUES ($1, $2)`, token, req.Timestamp); err != nil {
 		log.Printf("Failed to insert session: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
@@ -96,7 +98,7 @@ func viewSession(w http.ResponseWriter, r *http.Request) {
 
 	// Query the database - now reading timestamp directly
 	var session SessionInfo
-	err := db.QueryRow("SELECT timestamp, COALESCE(coin_result, '') FROM sessions WHERE token = ?", token).
+	err := db.QueryRow("SELECT timestamp, COALESCE(coin_result, '') FROM sessions WHERE token = $1", token).
 		Scan(&session.Timestamp, &session.CoinResult)
 
 	if err == sql.ErrNoRows {
@@ -126,7 +128,7 @@ func viewSession(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Save the result to the database
-		_, err = db.Exec("UPDATE sessions SET coin_result = ? WHERE token = ?", session.CoinResult, token)
+		_, err = db.Exec("UPDATE sessions SET coin_result = $1 WHERE token = $2", session.CoinResult, token)
 		if err != nil {
 			log.Printf("Failed to update coin result: %v", err)
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
@@ -142,18 +144,33 @@ func viewSession(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	db, err = sql.Open("sqlite3", "coindown.db")
+	// Load .env file
+	if err := godotenv.Load(); err != nil {
+		log.Printf("Warning: .env file not found")
+	}
+
+	// Build connection string from environment variables
+	connStr := fmt.Sprintf(
+		"host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
+		os.Getenv("DB_HOST"),
+		os.Getenv("DB_PORT"),
+		os.Getenv("DB_USER"),
+		os.Getenv("DB_PASSWORD"),
+		os.Getenv("DB_NAME"),
+	)
+
+	db, err = sql.Open("postgres", connStr)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer db.Close()
 
 	createTable := `
-	create table if not exists sessions (
-		token text primary key,
-		timestamp integer,
-		coin_result text,
-		created_at datetime default current_timestamp
+	CREATE TABLE IF NOT EXISTS sessions (
+		token TEXT PRIMARY KEY,
+		timestamp BIGINT,
+		coin_result TEXT,
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 	);`
 	_, err = db.Exec(createTable)
 	if err != nil {
